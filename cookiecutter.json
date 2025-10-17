@@ -1,0 +1,26 @@
+{
+  "project_name": "my_django_project",
+  "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_').replace('-', '_') }}",
+
+  "python_version": "3.12",
+  "django_version": "5.2.7",
+  "database": "postgresql",
+
+  "use_celery": ["yes", "no"],
+  "use_websocket": ["yes", "no"],
+
+  "aws_region": "ap-northeast-2",
+  "aws_deployment": "ecs-ec2",
+
+  "ci_cd_platform": "github-actions",
+  "use_terraform": "yes",
+  "terraform_state_backend": "s3",
+
+  "_copy_without_render": [
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".git",
+    ".gitignore"
+  ]
+}
