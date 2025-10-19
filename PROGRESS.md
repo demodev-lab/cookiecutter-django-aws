@@ -1,390 +1,354 @@
 # Django AWS Cookiecutter Template - 진행상황
 
-**마지막 업데이트:** 2025-10-17 (회사 Mac에서 작업 완료, 집 Windows WSL에서 이어서 작업 예정)
+**마지막 업데이트:** 2025-10-19 (Windows WSL에서 작업 중)
+
+---
 
 ## 프로젝트 개요
-Django 5.2.7 + AWS 배포를 위한 cookiecutter 템플릿 제작 중
 
-**핵심 기능:**
-- Django REST Framework + JWT 인증
-- AWS S3 presigned URL 방식으로 모든 파일 처리 (static, media)
-- Docker Compose로 로컬 개발 환경 구성
-- PostgreSQL, Redis, Celery, WebSocket(Channels) 지원
-- uv 패키지 매니저 사용
-- ECS-EC2 배포 타겟
+Django 5.2.7 + AWS ECS 배포를 위한 **프로덕션급 Cookiecutter 템플릿**
+
+**핵심 목표:** 실제 서비스가 AWS에서 돌아가도록 만들기
+
+**기술 스택:**
+- Django 5.2.7 + Django REST Framework + JWT 인증
+- AWS S3 Presigned URL (파일 업로드/다운로드)
+- Docker Compose (로컬 개발)
+- PostgreSQL, Redis, Celery, WebSocket (Channels)
+- uv 패키지 매니저
+- **ECS on EC2** (프로덕션 배포)
+- **Terraform** (인프라 관리)
+- **GitHub Actions** (CI/CD)
+
+---
 
 ## 완료된 작업 ✅
 
-### 1. S3 설정 단순화
-**파일:** `{{cookiecutter.project_slug}}/backend/config/settings.py` (Lines 137-158)
-
-**핵심 변경:**
-- DEBUG 모드 체크 제거 - 로컬에서도 S3 사용
-- USE_S3 플래그 제거
-- Django 자동 파일 저장 기능 제거 (FileSystemStorage, S3Boto3Storage 사용 안함)
-- **전략:** 모든 파일을 presigned URL로만 처리, 클라이언트가 직접 S3에 업로드
-
-**최종 설정:**
-```python
-# AWS S3 Configuration - Always enabled for all environments
-AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')  # Required
-AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')  # Required
-AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', default='...')
-AWS_S3_REGION_NAME = '{{cookiecutter.aws_region}}'
-AWS_PRESIGNED_URL_EXPIRY = 3600  # 1 hour
-```
-
-### 2. .env 파일 위치 변경
-**변경:** `backend/.env.example` → `.env.example` (프로젝트 루트)
-
-**이유:** docker-compose.yml이 루트에 있어서 env_file 설정을 위해 필요
-
-**docker-compose.yml 변경:**
-- 모든 서비스에 `env_file: - .env` 추가
-- 하드코딩된 환경변수들 제거
-
-### 3. pyproject.toml 빌드 설정 제거
-**파일:** `{{cookiecutter.project_slug}}/backend/pyproject.toml`
-
-**문제:** `[build-system]` 섹션 때문에 uv가 Django 앱을 Python 패키지로 빌드 시도 → 실패
-
-**해결:** `[build-system]` 섹션 전체 삭제 (Django 앱은 패키지 빌드 불필요)
-
-### 4. Jinja2 템플릿 공백 문제 수정
-**파일:** `{{cookiecutter.project_slug}}/docker-compose.yml`
-
-**문제:** `{% if ... -%}` 의 `-` 때문에 필요한 공백 제거 → YAML 들여쓰기 깨짐
-
-**해결:** 모든 `-%}` → `%}`로 변경
-
-### 5. docker-compose.yml 최신화
-- `version: '3.8'` 제거 (obsolete warning 방지)
-
-### 6. README.md 완전히 업데이트
-**파일:** `{{cookiecutter.project_slug}}/README.md`
-
-**업데이트 내용:**
-- AWS 자격증명 필수 요구사항 명시
-- `docker-compose` → `docker compose` 명령어 수정 (Docker Compose V2)
-- Django 명령어에 `uv run` 접두사 추가
-- S3 Presigned URL 아키텍처 설명 추가
-- Python 코드 예제 추가 (presigned URL 생성 API 샘플)
-
-### 7. .gitignore 파일 생성
-**템플릿 루트 및 생성될 프로젝트 양쪽 모두:**
-- `test-output/` - cookiecutter 테스트용
-- `.env` - AWS 자격증명 포함
-- `uv.lock` - 머신마다 다름
-- Python, IDE 관련 파일들
-
-### 8. 테스트 완료
-**테스트 환경:** macOS (회사)
-
-**명령어:**
-```bash
-cookiecutter . --output-dir test-output --overwrite-if-exists
-cd test-output/my_django_project
-docker compose up -d --build
-```
-
-**결과:**
-- ✅ 6개 컨테이너 모두 정상 실행
-  - PostgreSQL 15
+### Phase 1: 로컬 개발 환경 (완료)
+- ✅ Cookiecutter 템플릿 기본 구조
+- ✅ Docker Compose 6개 서비스 설정
+  - PostgreSQL 16
   - Redis 7
-  - Backend (Django + DRF)
+  - Django Backend (DRF + JWT)
   - WebSocket (Daphne)
   - Celery Worker
   - Celery Beat
-- ✅ uv sync 성공 (64개 패키지 설치)
-- ✅ 실제 AWS 자격증명으로 테스트 완료
+- ✅ S3 Presigned URL 전략 설정
+- ✅ Celery 설정 파일 추가 (`config/celery.py`, `config/__init__.py`)
+- ✅ .env 파일 위치 변경 (프로젝트 루트)
+- ✅ README.md 문서화
+- ✅ macOS + Windows WSL 테스트 완료
 
-## 현재 상태 (커밋 직전)
+**커밋 내역:**
+- `fb24848` - Initial cookiecutter Django AWS template
+- `4191508` - Add Celery configuration files
 
-### 완성된 것 ✅
-1. **Cookiecutter 템플릿 기본 구조** - 완전히 작동함
-2. **S3 Presigned URL 전략** - 설정 및 문서화 완료
-3. **Docker Compose 로컬 환경** - 6개 서비스 정상 작동
-4. **문서화** - README.md 완전히 업데이트
-5. **테스트** - macOS에서 전체 플로우 검증 완료
+---
 
-### 아직 구현 안된 것 (선택사항)
-1. **S3 Presigned URL API 실제 구현**
-   - README에 예제 코드만 있음
-   - 실제 Django 앱 없음 (필요시 `apps/common/` 생성)
+## 현재 작업 중 🚧
 
-2. **Terraform 인프라 코드** (cookiecutter.json에 use_terraform 옵션 있음)
-   - S3 버킷
-   - IAM 역할/정책
-   - ECS 클러스터
+### Phase 2: AWS 프로덕션 배포 준비
 
-3. **GitHub Actions CI/CD** (cookiecutter.json에 ci_cd_platform 옵션 있음)
-   - 자동 테스트
-   - ECS 배포
+**목표:** Terraform으로 AWS 인프라 자동 생성
 
-4. **테스트 코드**
-   - pytest 설정은 있지만 실제 테스트 파일 없음
+---
 
-## 집에서 작업 시작할 때 (Windows WSL)
+## 다음 작업 계획 📋
 
-### 1. 환경 준비
+### 작업 1: Terraform 인프라 코드 작성
+
+**디렉토리 구조:**
+```
+{{cookiecutter.project_slug}}/
+├── terraform/
+│   ├── README.md              # 사용자 가이드 (로컬 실행 방법)
+│   ├── main.tf                # 메인 설정
+│   ├── variables.tf           # 입력 변수
+│   ├── outputs.tf             # 출력값 (ALB URL, ECR 등)
+│   ├── vpc.tf                 # VPC, 서브넷, 인터넷 게이트웨이
+│   ├── s3.tf                  # S3 버킷 (미디어 파일)
+│   ├── rds.tf                 # PostgreSQL 데이터베이스
+│   ├── elasticache.tf         # Redis
+│   ├── ecr.tf                 # Docker 이미지 저장소
+│   ├── ecs.tf                 # ECS 클러스터 + Task Definitions
+│   ├── alb.tf                 # Application Load Balancer
+│   ├── iam.tf                 # IAM 역할/정책
+│   └── security.tf            # 보안 그룹
+```
+
+**생성될 AWS 리소스:**
+1. **S3 버킷** - 미디어 파일 저장 (`{project_slug}-media-{environment}`)
+2. **VPC** - 격리된 네트워크 (Public/Private 서브넷)
+3. **RDS PostgreSQL** - 프로덕션 데이터베이스
+4. **ElastiCache Redis** - 캐시 + Celery 브로커
+5. **ECR** - Docker 이미지 저장소
+6. **ECS Cluster + EC2** - 컨테이너 실행 환경
+7. **Application Load Balancer** - 트래픽 분산
+8. **IAM Roles** - ECS Task 실행 권한
+
+**중요 설정:**
+```hcl
+# S3 버킷 - 개발/프로덕션 환경 분리
+resource "aws_s3_bucket" "media" {
+  bucket = "${var.project_slug}-media-${var.environment}"
+
+  # 개발: 파일 포함 삭제 가능
+  # 프로덕션: 보호
+  force_destroy = var.environment == "dev" ? true : false
+}
+
+# 개발 환경: 30일 후 파일 자동 삭제
+resource "aws_s3_bucket_lifecycle_configuration" "media_dev" {
+  count  = var.environment == "dev" ? 1 : 0
+
+  rule {
+    id     = "delete-old-files"
+    status = "Enabled"
+    expiration {
+      days = 30
+    }
+  }
+}
+```
+
+**사용자 워크플로우:**
+```bash
+# 1. 프로젝트 생성
+cookiecutter cookiecutter-django-aws/
+
+# 2. AWS 인프라 생성 (최초 1회)
+cd my_project/terraform/
+terraform init
+terraform plan     # 생성될 리소스 미리보기
+terraform apply    # 실제 생성 (5~10분 소요)
+
+# 3. 출력값 확인
+terraform output
+# → alb_url, ecr_repository, s3_bucket_name 등
+
+# 4. 개발 완료 후 삭제
+terraform destroy  # 모든 리소스 삭제
+```
+
+---
+
+### 작업 2: GitHub Actions CI/CD 설정
+
+**디렉토리 구조:**
+```
+{{cookiecutter.project_slug}}/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml         # 애플리케이션 배포
+```
+
+**역할 분리:**
+- **Terraform** (로컬 실행): 인프라 생성/삭제 (최초 1회 + 인프라 변경 시)
+- **GitHub Actions** (자동 실행): 애플리케이션 배포 (코드 푸시할 때마다)
+
+**deploy.yml 워크플로우:**
+```yaml
+name: Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Docker 이미지 빌드
+      - name: Build Backend
+        run: docker build -t backend:latest ./backend
+
+      # 2. ECR에 푸시
+      - name: Push to ECR
+        run: |
+          aws ecr get-login-password | docker login ...
+          docker tag backend:latest $ECR_REPO:$GITHUB_SHA
+          docker push $ECR_REPO:$GITHUB_SHA
+
+      # 3. ECS 서비스 업데이트
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --force-new-deployment
+```
+
+**필요한 GitHub Secrets:**
+```
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
+ECR_REPOSITORY          # terraform output에서 가져옴
+ECS_CLUSTER_NAME        # terraform output에서 가져옴
+ECS_SERVICE_NAME        # terraform output에서 가져옴
+```
+
+---
+
+### 작업 3: 문서화
+
+**파일:**
+- `terraform/README.md` - Terraform 사용 가이드
+- `docs/deployment.md` - 배포 가이드
+- 프로젝트 `README.md` 업데이트
+
+---
+
+## 작업 순서 (체크리스트)
+
+### Step 1: Terraform 파일 작성
+- [ ] `terraform/README.md` - 사용자 가이드
+- [ ] `terraform/variables.tf` - 변수 정의
+- [ ] `terraform/main.tf` - Provider 설정
+- [ ] `terraform/vpc.tf` - VPC, 서브넷, IGW
+- [ ] `terraform/s3.tf` - S3 버킷 (force_destroy 설정 포함)
+- [ ] `terraform/rds.tf` - PostgreSQL
+- [ ] `terraform/elasticache.tf` - Redis
+- [ ] `terraform/ecr.tf` - Docker 이미지 저장소
+- [ ] `terraform/ecs.tf` - ECS 클러스터 + Task Definitions
+- [ ] `terraform/alb.tf` - Load Balancer
+- [ ] `terraform/iam.tf` - IAM 역할/정책
+- [ ] `terraform/security.tf` - 보안 그룹
+- [ ] `terraform/outputs.tf` - 출력값
+
+### Step 2: GitHub Actions 설정
+- [ ] `.github/workflows/deploy.yml` - 배포 워크플로우
+- [ ] 환경변수 관리 (Secrets Manager 참조)
+
+### Step 3: 테스트
+- [ ] 로컬에서 Terraform 테스트
+  ```bash
+  cookiecutter .
+  cd test-output/my_django_project/terraform/
+  terraform init
+  terraform plan
+  terraform apply  # 실제 AWS 리소스 생성
+  terraform destroy
+  ```
+- [ ] GitHub Actions 테스트 (실제 레포 생성해서)
+
+### Step 4: 문서화
+- [ ] Terraform README 작성
+- [ ] 배포 가이드 작성
+- [ ] 프로젝트 README 업데이트
+
+### Step 5: 커밋
+- [ ] Git add & commit
+- [ ] Git push
+
+---
+
+## 환경 설정
+
+### 로컬 개발 환경 (Windows WSL)
+```bash
+# 현재 위치
+/home/surkim/cookiecutter-django-aws/
+
+# Git 설정 완료
+user.name: surokim
+user.email: ksro0128@naver.com
+
+# 최신 커밋
+4191508 - Add Celery configuration files
+
+# 테스트 프로젝트
+test-output/my_django_project/  # Docker Compose 실행 중
+```
+
+### 필요한 도구
+- ✅ Git
+- ✅ Docker + Docker Compose
+- ✅ cookiecutter
+- ⬜ Terraform (설치 필요)
+- ⬜ AWS CLI (설치 필요)
+
+---
+
+## 중요 개념 정리
+
+### 1. Terraform vs GitHub Actions
+
+| 항목 | Terraform | GitHub Actions |
+|------|----------|---------------|
+| **역할** | AWS 인프라 생성/관리 | 애플리케이션 배포 |
+| **실행 위치** | 로컬 | GitHub 서버 |
+| **실행 빈도** | 최초 1회 + 인프라 변경 시 | 코드 푸시할 때마다 |
+| **명령어** | `terraform apply` | `git push` (자동) |
+| **생성 대상** | S3, RDS, ECS 클러스터 등 | Docker 이미지, ECS 서비스 업데이트 |
+
+### 2. 환경 분리 전략
+
+**개발 환경 (dev):**
+- S3 `force_destroy = true` → 파일 포함 삭제 가능
+- 30일 후 파일 자동 삭제
+- 작은 인스턴스 타입
+- 자유롭게 생성/삭제
+
+**프로덕션 환경 (prod):**
+- S3 `force_destroy = false` → 데이터 보호
+- Lifecycle 보호 정책
+- 큰 인스턴스 타입
+- 삭제 전 수동 확인 필요
+
+### 3. ECS Task Definition
+
+6개 컨테이너를 ECS에서 실행:
+1. Backend (Django)
+2. WebSocket (Daphne)
+3. Celery Worker
+4. Celery Beat
+5. PostgreSQL → RDS로 대체
+6. Redis → ElastiCache로 대체
+
+---
+
+## 시작하기 (내일 작업 시)
 
 ```bash
-# Git clone (집 PC)
-cd ~/projects  # 또는 원하는 디렉토리
-git clone <your-repo-url> cookiecutter-django-aws
-cd cookiecutter-django-aws
+# 1. 프로젝트 열기
+cd /home/surkim/cookiecutter-django-aws/
 
-# 브랜치 확인
-git branch
-git log --oneline -5
+# 2. Git 최신 상태 확인
+git status
+git log --oneline -3
+
+# 3. PROGRESS.md 읽기
+cat PROGRESS.md
+
+# 4. Terraform 디렉토리 생성
+mkdir -p {{cookiecutter.project_slug}}/terraform/
+
+# 5. Terraform 파일 작성 시작
+# - README.md부터 작성 (사용자 가이드)
+# - variables.tf (변수 정의)
+# - main.tf (Provider 설정)
+# - vpc.tf, s3.tf, rds.tf 등...
 ```
 
-### 2. .env 파일 생성 (필수!)
-**집에서 다시 만들어야 함 (.gitignore에 포함되어 있어서 push 안됨)**
+---
 
-프로젝트 루트에 `.env` 파일 생성:
-```bash
-# Database
-POSTGRES_DB=your_db_name
-POSTGRES_USER=your_db_user
-POSTGRES_PASSWORD=your_secure_password
-DATABASE_URL=postgresql://your_db_user:your_secure_password@db:5432/your_db_name
+## 참고 자료
 
-# Django
-SECRET_KEY=your-super-secret-key-here-change-this-in-production
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
+**Terraform AWS Provider:**
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs
 
-# AWS S3 (Required - 여기에 실제 AWS 키 입력!)
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...
-AWS_STORAGE_BUCKET_NAME=your-bucket-name
-
-# Redis
-REDIS_URL=redis://redis:6379/0
-
-# Celery
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
-```
-
-### 3. Windows WSL 환경 차이점
-
-**Docker 명령어 동일:**
-```bash
-# WSL에서도 동일하게 작동
-docker compose up -d --build
-docker compose logs -f backend
-docker compose exec backend uv run python manage.py migrate
-```
-
-**경로 차이:**
-- macOS: `/Users/surokim/...`
-- WSL: `/home/<username>/...` 또는 `/mnt/c/Users/...`
-
-**파일 권한:**
-WSL에서 Windows 파일시스템(`/mnt/c`) 사용 시 권한 문제 발생 가능
-→ WSL 네이티브 경로(`/home/<username>`) 사용 권장
-
-### 4. 테스트 명령어 (WSL에서)
-
-```bash
-# 1. 템플릿으로 프로젝트 생성
-cookiecutter . --output-dir test-output --overwrite-if-exists
-
-# 입력 예시:
-# project_name: My Django Project
-# project_slug: my_django_project
-# author_name: Your Name
-# aws_region: ap-northeast-2
-# use_celery: yes
-# use_websocket: yes
-# use_terraform: no
-# ci_cd_platform: github
-
-# 2. .env 파일 복사
-cp .env test-output/my_django_project/.env
-
-# 3. Docker Compose 실행
-cd test-output/my_django_project
-docker compose up -d --build
-
-# 4. 로그 확인
-docker compose logs -f backend
-
-# 5. 마이그레이션
-docker compose exec backend uv run python manage.py migrate
-
-# 6. 슈퍼유저 생성
-docker compose exec backend uv run python manage.py createsuperuser
-
-# 7. 정리
-docker compose down -v
-cd ../../
-rm -rf test-output
-```
-
-## 다음에 할 일 (우선순위 순)
-
-### 필수는 아니지만 유용한 것들:
-
-#### 1. S3 Presigned URL API 구현
-**언제 필요한가:** 템플릿을 실제 프로젝트에 사용할 때
-
-```bash
-# 생성된 프로젝트에서 실행
-cd backend
-uv run python manage.py startapp apps/common
-
-# 구현할 것:
-# - apps/common/views.py: get_upload_url, get_download_url
-# - apps/common/urls.py: URL 라우팅
-# - backend/config/urls.py: apps/common 연결
-```
-
-**참고:** README.md에 예제 코드 이미 있음
-
-#### 2. Terraform 인프라 코드
-**언제 필요한가:** AWS에 실제 배포할 때
-
-```bash
-# 템플릿에 추가할 것:
-mkdir -p {{cookiecutter.project_slug}}/terraform
-# terraform/main.tf: S3, IAM, ECS 리소스
-# terraform/variables.tf: 변수 정의
-# terraform/outputs.tf: 출력값
-```
-
-#### 3. GitHub Actions CI/CD
-**언제 필요한가:** 자동 배포 원할 때
-
-```bash
-# 템플릿에 추가할 것:
-mkdir -p {{cookiecutter.project_slug}}/.github/workflows
-# .github/workflows/ci.yml: 테스트 실행
-# .github/workflows/deploy.yml: ECS 배포
-```
-
-#### 4. 실제 사용 예제 앱
-**언제 필요한가:** 템플릿 사용법 보여줄 때
-
-```bash
-# 예시: 블로그 앱 (S3 이미지 업로드 포함)
-# - apps/blog/ 앱 생성
-# - Post 모델 (title, content, image_url)
-# - S3 presigned URL로 이미지 업로드 API
-```
-
-## 파일 구조 (핵심 파일만)
-
-```
-cookiecutter-django-aws/
-├── .gitignore                           # .env, test-output/ 제외
-├── PROGRESS.md                          # 이 파일
-├── cookiecutter.json                    # 템플릿 변수 정의
-└── {{cookiecutter.project_slug}}/
-    ├── .env.example                     # 환경변수 템플릿 (루트!)
-    ├── .gitignore                       # 생성될 프로젝트용
-    ├── docker-compose.yml               # 6개 서비스 정의
-    ├── README.md                        # 완전히 업데이트됨
-    └── backend/
-        ├── config/
-        │   ├── settings.py              # S3 설정 (137-158라인)
-        │   └── urls.py
-        ├── pyproject.toml               # [build-system] 제거됨
-        ├── Dockerfile
-        └── manage.py
-```
-
-## 중요한 개념 정리
-
-### S3 Presigned URL 전략
-**기존 방식 (사용 안함):**
-- Django FileField로 파일 업로드
-- django-storages가 자동으로 S3에 저장
-- Django 서버가 파일을 중계
-
-**현재 방식 (채택):**
-1. 클라이언트: "파일 업로드할게요" → Django API
-2. Django: Presigned URL 생성 → 클라이언트
-3. 클라이언트: 파일 직접 S3에 업로드 (PUT request)
-4. 클라이언트: S3 키(파일경로)를 Django API에 전송
-5. Django: S3 키를 DB에 저장 (CharField)
-
-**장점:**
-- Django 서버 부하 없음
-- 빠른 업로드
-- 로컬 개발 환경도 동일한 방식
-
-### uv 패키지 매니저
-```bash
-# 의존성 추가
-uv add django-extensions
-
-# 의존성 제거
-uv remove django-extensions
-
-# 동기화 (pip install과 유사)
-uv sync
-
-# 명령어 실행
-uv run python manage.py migrate
-uv run pytest
-```
-
-**주의:** `uv.lock` 파일은 gitignore (머신마다 다를 수 있음)
-
-### Docker Compose V2
-- ❌ `docker-compose` (구버전)
-- ✅ `docker compose` (새 버전, 하이픈 없음)
-
-WSL에서도 `docker compose` 사용
-
-## 트러블슈팅
-
-### 문제 1: uv sync 실패
-**원인:** `[build-system]`이 pyproject.toml에 있음
-**해결:** 이미 제거됨, 더 이상 발생 안함
-
-### 문제 2: docker-compose.yml 들여쓰기 깨짐
-**원인:** Jinja2 `-%}` 공백 제거
-**해결:** 이미 수정됨
-
-### 문제 3: .env 파일을 찾을 수 없음
-**확인 사항:**
-1. .env 파일이 프로젝트 루트에 있는지 (backend/ 안 아님!)
-2. docker-compose.yml과 같은 레벨
-
-### 문제 4: AWS 자격증명 오류
-**확인 사항:**
-1. .env에 실제 AWS 키 입력했는지
-2. S3 버킷이 실제로 존재하는지
-3. IAM 권한에 S3 접근 권한 있는지
-
-## 커밋 메시지 (참고용)
-
-```
-Initial cookiecutter Django AWS template
-
-- Django 5.2.7 + Python 3.12 + uv package manager
-- S3 presigned URL strategy for all file operations
-- Docker Compose setup with PostgreSQL, Redis, Celery, WebSocket
-- Fully tested on macOS, ready for deployment
-- Comprehensive documentation with examples
-```
-
-## 마지막 체크리스트
-
-출근해서 다시 시작할 때:
-- [ ] `git pull origin main` - 최신 코드 받기
-- [ ] `.env` 파일 생성 (AWS 자격증명 입력)
-- [ ] `PROGRESS.md` 이 파일 다시 읽기
-- [ ] 다음 작업 선택 (S3 API? Terraform? GitHub Actions?)
+**주요 리소스 문서:**
+- [aws_s3_bucket](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket)
+- [aws_ecs_cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_cluster)
+- [aws_ecs_task_definition](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition)
+- [aws_db_instance](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance)
+- [aws_elasticache_cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/elasticache_cluster)
+- [aws_lb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb)
 
 ---
 
 **작업 환경:**
-- 회사: macOS (완료)
-- 집: Windows 11 + WSL2 (예정)
-
-**Git 저장소:** 커밋 → 푸쉬 완료 후 집에서 클론
+- Windows 11 + WSL2
+- Git 레포: github.com:demodev-lab/cookiecutter-django-aws.git
+- 브랜치: main
