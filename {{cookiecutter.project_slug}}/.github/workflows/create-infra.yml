@@ -1,0 +1,72 @@
+{% raw %}name: Create AWS Infrastructure
+
+on:
+  workflow_dispatch:  # 수동 실행만
+
+env:
+  AWS_REGION: {% endraw %}{{cookiecutter.aws_region}}{% raw %}
+  TERRAFORM_VERSION: 1.5.7
+  ENVIRONMENT: demo  # 클라이언트 데모 환경
+
+jobs:
+  terraform:
+    name: Create Infrastructure with Terraform
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var="project_name={% endraw %}{{cookiecutter.project_slug}}{% raw %}" \
+            -var="environment=demo" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get Terraform Outputs
+        id: output
+        working-directory: terraform
+        run: |
+          ECR_URL=$(terraform output -raw ecr_repository_url)
+          APP_URL=$(terraform output -raw app_url)
+          echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure created successfully!"
+          echo "📦 ECR URL: $ECR_URL"
+          echo "🌐 App URL: $APP_URL"
+
+      - name: Summary
+        run: |
+          echo "🎉 AWS Infrastructure created successfully!"
+          echo ""
+          echo "📦 ECR Repository: ${{ steps.output.outputs.ecr_url }}"
+          echo "🌐 Application URL: ${{ steps.output.outputs.app_url }}"
+          echo ""
+          echo "Next steps:"
+          echo "1. Run 'Deploy Application' workflow to deploy your app"
+          echo "2. Access your app at: ${{ steps.output.outputs.app_url }}"
+{% endraw %}

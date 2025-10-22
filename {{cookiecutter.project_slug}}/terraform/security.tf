@@ -4,7 +4,7 @@
 
 # ALB 보안 그룹 (외부에서 HTTP/HTTPS 접근 가능)
 resource "aws_security_group" "alb" {
-  name        = "${var.project_name}-alb-sg-${var.environment}"
+  name        = "${replace(var.project_name, "_", "-")}-alb-sg-${var.environment}"
   description = "Security group for Application Load Balancer"
   vpc_id      = aws_vpc.main.id
 
@@ -33,13 +33,13 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name = "${var.project_name}-alb-sg-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-alb-sg-${var.environment}"
   }
 }
 
 # ECS 보안 그룹 (ALB에서만 접근 가능)
 resource "aws_security_group" "ecs" {
-  name        = "${var.project_name}-ecs-sg-${var.environment}"
+  name        = "${replace(var.project_name, "_", "-")}-ecs-sg-${var.environment}"
   description = "Security group for ECS tasks"
   vpc_id      = aws_vpc.main.id
 
@@ -60,13 +60,13 @@ resource "aws_security_group" "ecs" {
   }
 
   tags = {
-    Name = "${var.project_name}-ecs-sg-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-ecs-sg-${var.environment}"
   }
 }
 
 # RDS 보안 그룹 (ECS에서만 접근 가능)
 resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-rds-sg-${var.environment}"
+  name        = "${replace(var.project_name, "_", "-")}-rds-sg-${var.environment}"
   description = "Security group for RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
@@ -79,13 +79,13 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name = "${var.project_name}-rds-sg-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-rds-sg-${var.environment}"
   }
 }
 
 # Redis 보안 그룹 (ECS에서만 접근 가능)
 resource "aws_security_group" "redis" {
-  name        = "${var.project_name}-redis-sg-${var.environment}"
+  name        = "${replace(var.project_name, "_", "-")}-redis-sg-${var.environment}"
   description = "Security group for ElastiCache Redis"
   vpc_id      = aws_vpc.main.id
 
@@ -98,6 +98,6 @@ resource "aws_security_group" "redis" {
   }
 
   tags = {
-    Name = "${var.project_name}-redis-sg-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-redis-sg-${var.environment}"
   }
 }

@@ -8,7 +8,7 @@ resource "aws_elasticache_subnet_group" "main" {
   subnet_ids = aws_subnet.private[*].id
 
   tags = {
-    Name = "${var.project_name}-redis-subnet-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-redis-subnet-${var.environment}"
   }
 }
 
@@ -19,7 +19,7 @@ resource "aws_elasticache_cluster" "main" {
   # 엔진 설정
   engine         = "redis"
   engine_version = "7.0"
-  node_type      = local.redis_node_type  # dev: cache.t3.micro, prod: cache.t3.small
+  node_type      = local.redis_node_type  # demo/dev: cache.t3.micro, prod: cache.t3.small
 
   # 노드 개수 (단일 노드)
   num_cache_nodes = 1
@@ -35,6 +35,6 @@ resource "aws_elasticache_cluster" "main" {
   parameter_group_name = "default.redis7"
 
   tags = {
-    Name = "${var.project_name}-redis-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-redis-${var.environment}"
   }
 }

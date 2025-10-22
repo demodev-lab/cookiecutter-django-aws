@@ -8,7 +8,7 @@ resource "aws_db_subnet_group" "main" {
   subnet_ids = aws_subnet.private[*].id
 
   tags = {
-    Name = "${var.project_name}-db-subnet-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-db-subnet-${var.environment}"
   }
 }
 
@@ -19,7 +19,7 @@ resource "aws_db_instance" "main" {
   # 엔진 설정
   engine         = "postgres"
   engine_version = "16"
-  instance_class = local.db_instance_class  # dev: db.t3.micro, prod: db.t3.small
+  instance_class = local.db_instance_class  # demo/dev: db.t3.micro, prod: db.t3.small
 
   # 용량 설정
   allocated_storage     = 20
@@ -36,16 +36,16 @@ resource "aws_db_instance" "main" {
   publicly_accessible    = false  # 외부 접근 차단
 
   # 백업 설정
-  backup_retention_period = var.environment == "dev" ? 1 : 7  # dev: 1일, prod: 7일
-  backup_window           = "03:00-04:00"                     # UTC 기준
+  backup_retention_period = var.environment == "prod" ? 7 : 1  # demo/dev: 1일, prod: 7일
+  backup_window           = "03:00-04:00"                      # UTC 기준
   maintenance_window      = "mon:04:00-mon:05:00"
 
   # 삭제 보호
-  skip_final_snapshot       = var.environment == "dev" ? true : false  # dev: 스냅샷 생략
-  final_snapshot_identifier = var.environment == "dev" ? null : "${var.project_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  skip_final_snapshot       = var.environment == "prod" ? false : true  # demo/dev: 스냅샷 생략, prod: 생성
+  final_snapshot_identifier = var.environment == "prod" ? "${replace(var.project_name, "_", "-")}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}" : null
   deletion_protection       = var.environment == "prod" ? true : false  # prod: 삭제 방지
 
   tags = {
-    Name = "${var.project_name}-db-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-db-${var.environment}"
   }
 }

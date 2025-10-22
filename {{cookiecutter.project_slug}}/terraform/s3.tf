@@ -6,12 +6,12 @@
 resource "aws_s3_bucket" "media" {
   bucket = "${local.project_name_normalized}-media-${var.environment}"
 
-  # dev: terraform destroy 시 파일 포함 삭제 가능
+  # demo/dev: terraform destroy 시 파일 포함 삭제 가능
   # prod: 보호 (파일 먼저 삭제해야 버킷 삭제 가능)
-  force_destroy = var.environment == "dev" ? true : false
+  force_destroy = var.environment == "prod" ? false : true
 
   tags = {
-    Name = "${var.project_name}-media-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-media-${var.environment}"
   }
 }
 
@@ -38,9 +38,9 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   }
 }
 
-# dev 환경: 30일 지난 파일 자동 삭제 (비용 절감)
-resource "aws_s3_bucket_lifecycle_configuration" "media_dev" {
-  count  = var.environment == "dev" ? 1 : 0
+# demo/dev 환경: 30일 지난 파일 자동 삭제 (비용 절감)
+resource "aws_s3_bucket_lifecycle_configuration" "media_non_prod" {
+  count  = var.environment == "prod" ? 0 : 1
   bucket = aws_s3_bucket.media.id
 
   rule {

@@ -4,30 +4,30 @@
 
 # ECS 클러스터
 resource "aws_ecs_cluster" "main" {
-  name = "${var.project_name}-cluster-${var.environment}"
+  name = "${replace(var.project_name, "_", "-")}-cluster-${var.environment}"
 
   tags = {
-    Name = "${var.project_name}-cluster-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-cluster-${var.environment}"
   }
 }
 
 # CloudWatch 로그 그룹 (컨테이너 로그 저장)
 resource "aws_cloudwatch_log_group" "app" {
-  name              = "/ecs/${var.project_name}-${var.environment}"
-  retention_in_days = var.environment == "dev" ? 7 : 30  # dev: 7일, prod: 30일
+  name              = "/ecs/${replace(var.project_name, "_", "-")}-${var.environment}"
+  retention_in_days = var.environment == "prod" ? 30 : 7  # demo/dev: 7일, prod: 30일
 
   tags = {
-    Name = "${var.project_name}-logs-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-logs-${var.environment}"
   }
 }
 
 # ECS Task Definition (컨테이너 설정)
 resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}-${var.environment}"
+  family                   = "${replace(var.project_name, "_", "-")}-${var.environment}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = var.environment == "dev" ? "256" : "512"   # dev: 0.25vCPU, prod: 0.5vCPU
-  memory                   = var.environment == "dev" ? "512" : "1024"  # dev: 512MB, prod: 1GB
+  cpu                      = var.environment == "prod" ? "512" : "256"   # demo/dev: 0.25vCPU, prod: 0.5vCPU
+  memory                   = var.environment == "prod" ? "1024" : "512"  # demo/dev: 512MB, prod: 1GB
 
   execution_role_arn = aws_iam_role.ecs_execution_role.arn
   task_role_arn      = aws_iam_role.ecs_task_role.arn
@@ -81,18 +81,22 @@ resource "aws_ecs_task_definition" "app" {
   ])
 
   tags = {
-    Name = "${var.project_name}-task-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-task-${var.environment}"
   }
 }
 
 # ECS Service (컨테이너 실행 및 유지)
 resource "aws_ecs_service" "app" {
-  name            = "${var.project_name}-service-${var.environment}"
+  name            = "${replace(var.project_name, "_", "-")}-service-${var.environment}"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.environment == "dev" ? 1 : 2  # dev: 1개, prod: 2개
+  desired_count   = var.environment == "prod" ? 2 : 1  # demo/dev: 1개, prod: 2개
 
   launch_type = "FARGATE"
+
+  # Terraform destroy 시 강제 삭제 허용
+  force_new_deployment = true
+  wait_for_steady_state = false
 
   network_configuration {
     subnets          = aws_subnet.public[*].id
@@ -113,6 +117,10 @@ resource "aws_ecs_service" "app" {
   # }
 
   tags = {
-    Name = "${var.project_name}-service-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-service-${var.environment}"
+  }
+
+  lifecycle {
+    ignore_changes = [desired_count]
   }
 }

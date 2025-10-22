@@ -1,0 +1,208 @@
+{% raw %}name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main  # main 브랜치 push 시 자동 배포
+  workflow_dispatch:  # 수동 실행도 가능
+
+env:
+  AWS_REGION: {% endraw %}{{cookiecutter.aws_region}}{% raw %}
+  ECR_REPOSITORY: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-demo
+  ECS_CLUSTER: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-demo
+  ECS_SERVICE: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-service-demo
+
+jobs:
+  # Job 0: 인프라 존재 확인
+  check-infrastructure:
+    name: Check Infrastructure
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+    outputs:
+      exists: ${{ steps.check.outputs.exists }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check if infrastructure exists
+        id: check
+        run: |
+          echo "🔍 Checking if infrastructure exists..."
+
+          # ECR repository 존재 확인
+          if aws ecr describe-repositories \
+            --repository-names ${{ env.ECR_REPOSITORY }} \
+            --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Infrastructure exists - proceeding with deployment"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Infrastructure not found!"
+            echo ""
+            echo "Please run 'Create AWS Infrastructure' workflow first:"
+            echo "  1. Go to Actions tab"
+            echo "  2. Select 'Create AWS Infrastructure'"
+            echo "  3. Click 'Run workflow'"
+            echo ""
+            echo "Skipping deployment..."
+          fi
+
+  # Job 1: Docker 이미지 빌드 & ECR 푸시
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+    needs: check-infrastructure
+    if: needs.check-infrastructure.outputs.exists == 'true'
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      ecr_url: ${{ steps.ecr.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ECR repository URL
+        id: ecr
+        run: |
+          ECR_URL="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}"
+          echo "url=$ECR_URL" >> $GITHUB_OUTPUT
+          echo "📦 ECR URL: $ECR_URL"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata for Docker
+        id: meta
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          echo "tags=${{ steps.ecr.outputs.url }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "latest=${{ steps.ecr.outputs.url }}:latest" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        working-directory: backend
+        run: |
+          docker build -t ${{ steps.meta.outputs.tags }} .
+          docker tag ${{ steps.meta.outputs.tags }} ${{ steps.meta.outputs.latest }}
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ steps.meta.outputs.tags }}
+          docker push ${{ steps.meta.outputs.latest }}
+
+      - name: Image digest
+        run: echo "✅ Image pushed - ${{ steps.meta.outputs.tags }}"
+
+  # Job 2: ECS 서비스 배포
+  deploy:
+    name: Deploy to ECS
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+    needs: [check-infrastructure, build-and-push]
+    if: needs.check-infrastructure.outputs.exists == 'true'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+          echo "🚀 Deployment triggered for ${{ env.ECS_SERVICE }}"
+
+      - name: Wait for ECS service to be stable
+        run: |
+          echo "⏳ Waiting for ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --region ${{ env.AWS_REGION }}
+
+          echo "✅ ECS service is now stable"
+
+      - name: Get ALB URL
+        id: alb
+        run: |
+          APP_URL="http://{% endraw %}{{cookiecutter.project_slug}}{% raw %}-alb-demo.{% endraw %}{{cookiecutter.aws_region}}{% raw %}.elb.amazonaws.com"
+          echo "url=$APP_URL" >> $GITHUB_OUTPUT
+          echo "🌐 App URL: $APP_URL"
+
+      - name: Deployment summary
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo ""
+          echo "📦 Image: ${{ needs.build-and-push.outputs.image_tag }}"
+          echo "🌐 App URL: ${{ steps.alb.outputs.url }}"
+          echo "🔧 ECS Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "🚀 ECS Service: ${{ env.ECS_SERVICE }}"
+          echo ""
+          echo "Access your application at:"
+          echo "${{ steps.alb.outputs.url }}"
+
+  # Job 3: 배포 후 헬스체크
+  health-check:
+    name: Health Check
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+    needs: [check-infrastructure, deploy]
+    if: needs.check-infrastructure.outputs.exists == 'true'
+
+    steps:
+      - name: Get ALB URL
+        id: alb
+        run: |
+          APP_URL="http://{% endraw %}{{cookiecutter.project_slug}}{% raw %}-alb-demo.{% endraw %}{{cookiecutter.aws_region}}{% raw %}.elb.amazonaws.com"
+          echo "url=$APP_URL" >> $GITHUB_OUTPUT
+
+      - name: Wait for application to start
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          APP_URL="${{ steps.alb.outputs.url }}"
+          MAX_ATTEMPTS=10
+          ATTEMPT=1
+
+          echo "🏥 Starting health check for $APP_URL"
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/admin/" || echo "000")
+
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ] || [ "$HTTP_CODE" = "301" ]; then
+              echo "✅ Health check passed! (HTTP $HTTP_CODE)"
+              echo ""
+              echo "🎊 Deployment successful!"
+              echo "🌐 Application URL: $APP_URL"
+              exit 0
+            fi
+
+            echo "⏳ Received HTTP $HTTP_CODE, retrying in 10 seconds..."
+            sleep 10
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo "⚠️  Health check failed after $MAX_ATTEMPTS attempts"
+          echo "Please check ECS logs:"
+          echo "aws logs tail /ecs/{% endraw %}{{cookiecutter.project_slug}}{% raw %}-demo --follow"
+          exit 1
+{% endraw %}

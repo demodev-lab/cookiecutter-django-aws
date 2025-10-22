@@ -11,7 +11,7 @@ resource "aws_lb" "main" {
   subnets            = aws_subnet.public[*].id
 
   tags = {
-    Name = "${var.project_name}-alb-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-alb-${var.environment}"
   }
 }
 
@@ -37,7 +37,7 @@ resource "aws_lb_target_group" "app" {
   }
 
   tags = {
-    Name = "${var.project_name}-tg-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-tg-${var.environment}"
   }
 }
 

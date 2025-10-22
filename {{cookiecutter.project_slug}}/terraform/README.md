@@ -116,13 +116,21 @@ open $(terraform -chdir=terraform output -raw app_url)
 
 ## 환경 설정
 
-### dev 환경 (개발용)
+### demo 환경 (클라이언트 데모 - 기본값)
 ```bash
 terraform apply
-# 기본값: environment=dev
-# - 작은 인스턴스 (비용 절감)
+# 기본값: environment=demo
+# - 작은 인스턴스 (비용 절감, 빠른 생성)
 # - S3 파일 30일 후 자동 삭제
+# - 스냅샷 생략 (빠른 삭제)
 # - 쉬운 삭제 가능
+```
+
+### dev 환경 (로컬 개발용)
+```bash
+terraform apply -var="environment=dev"
+# - demo와 동일한 설정
+# - 로컬 테스트용
 ```
 
 ### prod 환경 (프로덕션)
@@ -153,7 +161,7 @@ terraform destroy
 ```
 
 **주의:**
-- dev 환경: S3 파일 포함 모두 삭제
+- demo/dev 환경: S3 파일 포함 모두 삭제
 - prod 환경: S3 버킷에 파일이 있으면 삭제 실패 (데이터 보호)
 
 ## 트러블슈팅
@@ -178,12 +186,12 @@ terraform destroy
 ### 로그 확인
 ```bash
 # ECS 컨테이너 로그 보기
-aws logs tail /ecs/{{cookiecutter.project_slug}}-dev --follow --region {{cookiecutter.aws_region}}
+aws logs tail /ecs/{{cookiecutter.project_slug}}-demo --follow --region {{cookiecutter.aws_region}}
 ```
 
 ## 비용 추정
 
-### dev 환경 (월 예상)
+### demo/dev 환경 (월 예상)
 - RDS db.t3.micro: ~$15
 - ElastiCache cache.t3.micro: ~$12
 - ECS Fargate (0.25vCPU, 512MB): ~$10

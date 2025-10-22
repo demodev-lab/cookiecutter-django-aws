@@ -10,9 +10,9 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "환경 (dev=개발용, prod=프로덕션)"
+  description = "환경 (dev=개발용, demo=클라이언트 데모, prod=프로덕션)"
   type        = string
-  default     = "dev"
+  default     = "demo"
 }
 
 variable "aws_region" {
@@ -46,10 +46,10 @@ locals {
   # 프로젝트 이름 정규화 (언더스코어를 하이픈으로 변경)
   project_name_normalized = replace(var.project_name, "_", "-")
 
-  # dev: 작고 저렴, prod: 크고 안정적
-  db_instance_class = var.environment == "dev" ? "db.t3.micro" : "db.t3.small"
-  redis_node_type   = var.environment == "dev" ? "cache.t3.micro" : "cache.t3.small"
-  ecs_instance_type = var.environment == "dev" ? "t3.small" : "t3.medium"
+  # dev/demo: 작고 저렴 (빠른 테스트), prod: 크고 안정적
+  db_instance_class = var.environment == "prod" ? "db.t3.small" : "db.t3.micro"
+  redis_node_type   = var.environment == "prod" ? "cache.t3.small" : "cache.t3.micro"
+  ecs_instance_type = var.environment == "prod" ? "t3.medium" : "t3.small"
 
   # 공통 태그
   common_tags = {

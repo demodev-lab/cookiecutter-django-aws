@@ -10,11 +10,13 @@
   "use_websocket": ["yes", "no"],
 
   "aws_region": "ap-northeast-2",
-  "aws_deployment": "ecs-ec2",
+  "aws_deployment": "ecs-fargate",
 
   "ci_cd_platform": "github-actions",
+  "github_runner": ["ubuntu-latest", "self-hosted"],
   "use_terraform": "yes",
   "terraform_state_backend": "s3",
+  "terraform_state_bucket": "demodev-lab-terraform-states",
 
   "_copy_without_render": [
     "*.pyc",

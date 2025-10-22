@@ -4,7 +4,7 @@
 
 # ECR 리포지토리 생성
 resource "aws_ecr_repository" "app" {
-  name                 = "${var.project_name}-${var.environment}"
+  name                 = "${replace(var.project_name, "_", "-")}-${var.environment}"
   image_tag_mutability = "MUTABLE"  # 같은 태그 덮어쓰기 가능
 
   # 이미지 스캔 (보안 취약점 검사)
@@ -13,7 +13,7 @@ resource "aws_ecr_repository" "app" {
   }
 
   tags = {
-    Name = "${var.project_name}-ecr-${var.environment}"
+    Name = "${replace(var.project_name, "_", "-")}-ecr-${var.environment}"
   }
 }
 

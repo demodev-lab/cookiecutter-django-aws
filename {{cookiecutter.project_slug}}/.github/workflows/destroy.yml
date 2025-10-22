@@ -1,0 +1,79 @@
+{% raw %}name: Destroy AWS Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm'
+        required: true
+        default: ''
+
+env:
+  AWS_REGION: {% endraw %}{{cookiecutter.aws_region}}{% raw %}
+  TERRAFORM_VERSION: 1.5.7
+
+jobs:
+  destroy:
+    name: Destroy Infrastructure
+    runs-on: {% endraw %}{{cookiecutter.github_runner}}{% raw %}
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
+            echo "❌ Confirmation failed!"
+            echo "Please type 'destroy' to confirm"
+            exit 1
+          fi
+          echo "✅ Confirmation received"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Destroy
+        working-directory: terraform
+        run: |
+          echo "🗑️  Starting infrastructure destruction..."
+          terraform destroy \
+            -var="project_name={% endraw %}{{cookiecutter.project_slug}}{% raw %}" \
+            -var="environment=demo" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -auto-approve
+
+          echo "✅ Infrastructure destroyed successfully!"
+
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🗑️  All AWS resources have been destroyed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Destroyed resources:"
+          echo "  - VPC and networking"
+          echo "  - RDS PostgreSQL"
+          echo "  - ElastiCache Redis"
+          echo "  - ECS Cluster and Services"
+          echo "  - ECR Repository"
+          echo "  - Application Load Balancer"
+          echo "  - S3 Bucket (if empty)"
+          echo ""
+          echo "Note: You may need to manually delete:"
+          echo "  - S3 bucket if it contains files"
+          echo "  - CloudWatch logs (optional)"
+{% endraw %}
