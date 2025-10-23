@@ -8,9 +8,10 @@ on:
 
 env:
   AWS_REGION: {% endraw %}{{cookiecutter.aws_region}}{% raw %}
-  ECR_REPOSITORY: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-demo
-  ECS_CLUSTER: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-demo
-  ECS_SERVICE: {% endraw %}{{cookiecutter.project_slug}}{% raw %}-service-demo
+  PROJECT_NAME: {% endraw %}{{ cookiecutter.project_slug | replace('_', '-') }}{% raw %}
+  ECR_REPOSITORY: {% endraw %}{{ cookiecutter.project_slug | replace('_', '-') }}{% raw %}-demo
+  ECS_CLUSTER: {% endraw %}{{ cookiecutter.project_slug | replace('_', '-') }}{% raw %}-cluster-demo
+  ECS_SERVICE: {% endraw %}{{ cookiecutter.project_slug | replace('_', '-') }}{% raw %}-service-demo
 
 jobs:
   # Job 0: 인프라 존재 확인
@@ -83,6 +84,9 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Extract metadata for Docker
         id: meta
         run: |
@@ -93,7 +97,7 @@ jobs:
       - name: Build Docker image
         working-directory: backend
         run: |
-          docker build -t ${{ steps.meta.outputs.tags }} .
+          docker buildx build --platform linux/amd64 --load -t ${{ steps.meta.outputs.tags }} .
           docker tag ${{ steps.meta.outputs.tags }} ${{ steps.meta.outputs.latest }}
 
       - name: Push Docker image to ECR
@@ -142,7 +146,11 @@ jobs:
       - name: Get ALB URL
         id: alb
         run: |
-          APP_URL="http://{% endraw %}{{cookiecutter.project_slug}}{% raw %}-alb-demo.{% endraw %}{{cookiecutter.aws_region}}{% raw %}.elb.amazonaws.com"
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[?contains(LoadBalancerName, `${{ env.PROJECT_NAME }}`)].DNSName' \
+            --output text | head -n1)
+          APP_URL="http://${ALB_DNS}"
           echo "url=$APP_URL" >> $GITHUB_OUTPUT
           echo "🌐 App URL: $APP_URL"
 
@@ -166,11 +174,23 @@ jobs:
     if: needs.check-infrastructure.outputs.exists == 'true'
 
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Get ALB URL
         id: alb
         run: |
-          APP_URL="http://{% endraw %}{{cookiecutter.project_slug}}{% raw %}-alb-demo.{% endraw %}{{cookiecutter.aws_region}}{% raw %}.elb.amazonaws.com"
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[?contains(LoadBalancerName, `${{ env.PROJECT_NAME }}`)].DNSName' \
+            --output text | head -n1)
+          APP_URL="http://${ALB_DNS}"
           echo "url=$APP_URL" >> $GITHUB_OUTPUT
+          echo "🌐 Health check URL: $APP_URL"
 
       - name: Wait for application to start
         run: sleep 30

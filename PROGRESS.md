@@ -1,6 +1,6 @@
 # Django AWS Cookiecutter Template - 진행상황
 
-**마지막 업데이트:** 2025-10-22
+**마지막 업데이트:** 2025-10-23
 
 ---
 
@@ -136,18 +136,100 @@ Django 5.2.7 + AWS ECS 배포를 위한 **프로덕션급 Cookiecutter 템플릿
 
 ## 현재 작업 중 🚧
 
-**Terraform S3 Backend 테스트 완료 중**
+**Phase 4: End-to-End 배포 테스트 및 버그 수정 (완료!)**
 
-**테스트 결과:**
-- ✅ S3 bucket에 state 저장 확인: `demodev-lab-terraform-states/test_workflow_v3/demo/terraform.tfstate`
-- ✅ GitHub Actions에서 state 읽기 가능
-- ✅ terraform destroy 정상 작동 (state 기반 삭제)
-- ⏳ 개인 레포(ksro0128) 대신 조직 레포(demodev-lab)로 재테스트 예정
+### 2025-10-23 작업 내역
 
-**다음 단계:**
-1. 현재 AWS 리소스 destroy (진행 중)
-2. 개인 레포 삭제
-3. 조직 레포로 다시 생성해서 전체 플로우 테스트
+**테스트 프로젝트:** `test_workflow_v4` (demodev-lab 조직)
+
+#### 해결한 주요 이슈들:
+
+1. **Docker 플랫폼 호환성 문제** ✅
+   - 문제: `exec format error` - ARM64 이미지가 ECS Fargate(x86_64)에서 실행 안 됨
+   - 해결: Docker Buildx 사용 + `--platform linux/amd64` 옵션 추가
+   - 파일: `deploy.yml`, `Dockerfile`
+
+2. **UV 패키지 매니저 설치 방식 개선** ✅
+   - 문제: `COPY --from` 방식의 플랫폼 불일치
+   - 해결: `pip install uv`로 변경 (플랫폼 무관)
+   - 파일: `Dockerfile`
+
+3. **AWS 자격증명 처리** ✅
+   - 문제: ECS에서 `AWS_ACCESS_KEY_ID` 환경 변수 필수로 요구
+   - 해결: `env('AWS_ACCESS_KEY_ID', default=None)` - IAM Task Role 사용
+   - 파일: `settings.py`
+
+4. **리소스 네이밍 불일치** ✅
+   - 문제: `test_workflow_v4` vs `test-workflow-v4`
+   - 해결: deploy.yml에서 정규화된 이름 사용
+   - 파일: `deploy.yml` - `PROJECT_NAME` 환경 변수 추가
+
+5. **HTTPS 강제 리다이렉트 문제** ✅
+   - 문제: demo 환경에서 SSL 인증서 없이 HTTPS 리다이렉트 발생
+   - 해결: `ENVIRONMENT` 변수 체크, prod 환경에서만 HTTPS 강제
+   - 파일: `settings.py`
+
+6. **Django Admin Static 파일 문제** ✅
+   - 문제: CSS/JS 파일이 로드되지 않아 Admin 페이지 깨짐
+   - 해결: WhiteNoise 추가 + `collectstatic` 실행
+   - 파일: `pyproject.toml`, `settings.py`, `Dockerfile`
+
+7. **S3 버킷 이름 일관성** ✅
+   - 문제: `test_workflow_v4-media-prod` (잘못된 기본값)
+   - 해결: `test-workflow-v4-media-demo` (정규화 + 환경 일치)
+   - 파일: `settings.py`, `.env`
+
+8. **ALB URL 동적 조회** ✅
+   - 문제: Health check에서 하드코딩된 URL 사용
+   - 해결: AWS CLI로 동적 조회 (`PROJECT_NAME` 기반)
+   - 파일: `deploy.yml`
+
+9. **Health Check Job AWS Credentials** ✅
+   - 문제: Health check job에서 AWS credentials 없음
+   - 해결: `configure-aws-credentials` 액션 추가
+   - 파일: `deploy.yml`
+
+#### 최종 테스트 결과:
+
+- ✅ **Terraform 인프라 생성 성공** (34개 리소스)
+- ✅ **Docker 이미지 빌드 성공** (linux/amd64)
+- ✅ **ECR 푸시 성공**
+- ✅ **ECS Fargate 배포 성공**
+- ✅ **Django 애플리케이션 정상 실행**
+- ✅ **ALB를 통한 HTTP 접속 성공**
+- ✅ **Django Admin 페이지 정상 표시** (CSS/JS 로드됨)
+- ✅ **IAM Task Role 기반 S3 접근 가능**
+
+**접속 URL:** `http://test-workflow-v4-alb-demo-1824358523.ap-northeast-2.elb.amazonaws.com/admin/`
+
+#### 수정된 파일 목록:
+
+**Cookiecutter 템플릿:**
+- `{{cookiecutter.project_slug}}/backend/Dockerfile`
+- `{{cookiecutter.project_slug}}/backend/pyproject.toml`
+- `{{cookiecutter.project_slug}}/backend/config/settings.py`
+- `{{cookiecutter.project_slug}}/.github/workflows/deploy.yml`
+
+**테스트 프로젝트 (test_workflow_v4):**
+- `backend/Dockerfile`
+- `backend/pyproject.toml`
+- `backend/config/settings.py`
+- `.github/workflows/deploy.yml`
+- `.env`
+
+---
+
+## 다음 단계
+
+**우선순위 1: 템플릿 정리 및 커밋**
+- [ ] 모든 변경사항 커밋
+- [ ] 테스트 프로젝트 정리
+- [ ] README 업데이트
+
+**우선순위 2: 추가 기능 구현 (선택 사항)**
+- [ ] Migration 자동 실행 (entrypoint.sh)
+- [ ] Superuser 자동 생성 스크립트
+- [ ] CloudWatch 로그 필터 설정
 
 ---
 
@@ -326,22 +408,22 @@ make destroy-aws-manual
 
 ## 알려진 이슈 및 해결 방법
 
-### 1. Terraform State 문제
+### 1. Terraform State 문제 ✅ (해결됨)
 **증상:** `terraform destroy`가 "0 destroyed" 출력
 **원인:** State가 로컬에만 저장되어 GitHub Actions에서 접근 불가
 **해결:** S3 Backend 사용 (현재 구현됨)
 
-### 2. 리소스 네이밍 불일치
+### 2. 리소스 네이밍 불일치 ✅ (해결됨)
 **증상:** Makefile로 삭제 시 리소스를 못 찾음
 **원인:** Terraform이 `_` → `-` 변환, Makefile은 그대로 사용
-**해결:** Makefile에 `PROJECT_NAME_NORMALIZED` 추가
+**해결:** Makefile에 `PROJECT_NAME_NORMALIZED` 추가, deploy.yml에 `PROJECT_NAME` 환경 변수 추가
 
-### 3. Push 시 자동 배포되는 문제
+### 3. Push 시 자동 배포되는 문제 ✅ (해결됨)
 **증상:** 코드 push할 때마다 AWS 리소스 생성
 **원인:** deploy.yml에 인프라 체크 로직 없음
 **해결:** `check-infrastructure` job 추가
 
-### 4. ECS Service 삭제 실패
+### 4. ECS Service 삭제 실패 ✅ (해결됨)
 **증상:** terraform destroy 시 ECS Service 삭제 타임아웃
 **원인:** ECS Service의 desired_count가 계속 변경됨
 **해결:** lifecycle 정책 추가
@@ -350,6 +432,21 @@ lifecycle {
   ignore_changes = [desired_count]
 }
 ```
+
+### 5. Docker 플랫폼 호환성 ✅ (해결됨 - 2025-10-23)
+**증상:** `exec format error` - ECS Task가 계속 실패
+**원인:** ARM64 이미지가 ECS Fargate(x86_64)에서 실행 안 됨
+**해결:** Docker Buildx 사용 + `--platform linux/amd64`
+
+### 6. HTTPS 리다이렉트 문제 ✅ (해결됨 - 2025-10-23)
+**증상:** demo 환경에서 HTTPS로 리다이렉트되어 접속 불가
+**원인:** `SECURE_SSL_REDIRECT=True`가 모든 환경에 적용됨
+**해결:** `ENVIRONMENT` 변수로 prod 환경에서만 HTTPS 강제
+
+### 7. Django Admin Static 파일 문제 ✅ (해결됨 - 2025-10-23)
+**증상:** Admin 페이지가 CSS/JS 없이 깨져서 표시됨
+**원인:** Static 파일 서빙 설정 없음
+**해결:** WhiteNoise 추가 + Dockerfile에서 `collectstatic` 실행
 
 ---
 

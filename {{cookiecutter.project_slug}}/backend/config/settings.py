@@ -42,6 +42,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -142,11 +143,12 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # AWS S3 Configuration - Always enabled for all environments
-AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
+# Note: In ECS, credentials are provided via IAM Task Role (not env vars)
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', default=None)
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', default=None)
 AWS_STORAGE_BUCKET_NAME = env(
     'AWS_STORAGE_BUCKET_NAME',
-    default='{{cookiecutter.project_slug}}-media-prod'
+    default='{{ cookiecutter.project_slug | replace("_", "-") }}-media-demo'  # Default for local dev
 )
 AWS_S3_REGION_NAME = '{{cookiecutter.aws_region}}'
 AWS_S3_SIGNATURE_VERSION = 's3v4'
@@ -196,7 +198,11 @@ SPECTACULAR_SETTINGS = {
 }
 
 # Security settings (Production)
-if not DEBUG:
+# Note: In demo environment, we don't use HTTPS (no SSL certificate)
+ENVIRONMENT = env('ENVIRONMENT', default='dev')
+USE_HTTPS = ENVIRONMENT == 'prod'  # Only enforce HTTPS in production
+
+if not DEBUG and USE_HTTPS:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

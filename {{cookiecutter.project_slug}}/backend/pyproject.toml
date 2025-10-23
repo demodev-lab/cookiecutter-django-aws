@@ -11,6 +11,7 @@ dependencies = [
     "django-cors-headers>=4.3.0",
     "psycopg2-binary>=2.9.0",
     "gunicorn>=21.2.0",
+    "whitenoise>=6.6.0",
     "drf-spectacular>=0.27.0",
 {% if cookiecutter.use_celery == "yes" or cookiecutter.use_websocket == "yes" -%}
     "redis>=5.0.0",

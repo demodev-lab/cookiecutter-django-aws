@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv via pip (platform-agnostic)
+RUN pip install --no-cache-dir uv
 
 # Set work directory
 WORKDIR /app
@@ -30,6 +30,9 @@ RUN uv sync --no-cache
 
 # Copy project
 COPY . .
+
+# Collect static files for Django Admin (before switching to non-root user)
+RUN uv run python manage.py collectstatic --noinput
 
 # Run as non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
