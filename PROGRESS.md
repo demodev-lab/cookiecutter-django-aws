@@ -1,6 +1,6 @@
 # Django AWS Cookiecutter Template - 진행상황
 
-**마지막 업데이트:** 2025-10-23
+**마지막 업데이트:** 2025-10-24
 
 ---
 
@@ -12,6 +12,7 @@ Django 5.2.7 + AWS ECS 배포를 위한 **프로덕션급 Cookiecutter 템플릿
 
 **기술 스택:**
 - Django 5.2.7 + Django REST Framework + JWT 인증
+- **Next.js 16** (프론트엔드 - TypeScript + Tailwind CSS)
 - AWS S3 Presigned URL (파일 업로드/다운로드)
 - Docker Compose (로컬 개발)
 - PostgreSQL 16, Redis 7, Celery, WebSocket (Channels)
@@ -20,6 +21,7 @@ Django 5.2.7 + AWS ECS 배포를 위한 **프로덕션급 Cookiecutter 템플릿
 - **Terraform** (인프라 관리)
 - **Terraform S3 Backend** (State 관리)
 - **GitHub Actions** (CI/CD)
+- **ALB 경로 기반 라우팅** (/ → Frontend, /api → Backend)
 
 ---
 
@@ -219,17 +221,125 @@ Django 5.2.7 + AWS ECS 배포를 위한 **프로덕션급 Cookiecutter 템플릿
 
 ---
 
+## 현재 작업 중 🚧
+
+**Phase 5: Next.js 프론트엔드 추가 및 Full-Stack 배포 (진행 중)**
+
+### 2025-10-24 작업 내역
+
+**테스트 프로젝트:** `test_workflow_v4` (demodev-lab 조직)
+
+#### 완료된 작업:
+
+1. **Next.js 프론트엔드 추가** ✅
+   - Next.js 16 + TypeScript + Tailwind CSS
+   - 개발용 Dockerfile (Vite dev server)
+   - 프로덕션용 Dockerfile.prod (Standalone build)
+   - `next.config.ts`에 standalone output 설정
+
+2. **Django API 경로 표준화** ✅
+   - 모든 API 엔드포인트에 `/api` prefix 추가
+   - Health check: `/api/health/`
+   - Admin: `/api/admin/`
+   - 환경변수 없이 하드코딩 (표준 패턴)
+
+3. **Terraform 인프라 업데이트** ✅
+   - ECR 리포지토리 분리:
+     - `test-workflow-v4-backend-demo`
+     - `test-workflow-v4-frontend-demo`
+   - ECR `force_delete` 옵션 추가 (이미지 있어도 삭제 가능)
+   - ALB 경로 기반 라우팅:
+     - `/` → Frontend Target Group (Port 3000)
+     - `/api/*` → Backend Target Group (Port 8000)
+   - ECS Task Definition 분리:
+     - Backend Task (Django + Gunicorn)
+     - Frontend Task (Next.js SSR)
+   - ECS Service 분리:
+     - Backend Service
+     - Frontend Service
+   - CloudWatch 로그 그룹 분리
+   - Target Group 헬스체크 경로:
+     - Frontend: `/`
+     - Backend: `/api/health/`
+
+4. **GitHub Actions 워크플로우 업데이트** ✅
+   - `deploy.yml` 전면 수정:
+     - Backend 빌드 job 추가
+     - Frontend 빌드 job 추가 (Dockerfile.prod 사용)
+     - 병렬 빌드 (build-backend, build-frontend)
+     - 순차 배포 (Backend → Frontend)
+     - 헬스체크 분리 (Frontend `/`, Backend `/api/health/`)
+   - 환경 변수 업데이트:
+     - `ECR_BACKEND`, `ECR_FRONTEND`
+     - `ECS_BACKEND_SERVICE`, `ECS_FRONTEND_SERVICE`
+
+5. **환경변수 및 URL 전략** ✅
+   - 로컬 개발: `NEXT_PUBLIC_API_URL=http://localhost:8000`
+   - AWS 배포: `NEXT_PUBLIC_API_URL=` (빈 값 = 상대 경로 `/api`)
+   - CORS 불필요 (같은 ALB 오리진)
+   - docker-compose.yml 업데이트 (frontend 서비스 추가)
+
+6. **Docker 설정** ✅
+   - Frontend Dockerfile (개발용, Hot reload)
+   - Frontend Dockerfile.prod (프로덕션용, Multi-stage build)
+   - Backend Dockerfile 유지 (이미 완성됨)
+   - Platform: linux/amd64 (ECS Fargate 호환)
+
+#### 현재 상태:
+
+- ✅ 로컬 docker-compose 테스트 완료 (Backend 정상 작동)
+- 🔄 **AWS 배포 진행 중:**
+  - Terraform 인프라 재생성 필요 (ECR 이름 변경으로 인해)
+  - Destroy 워크플로우 실행 중 (force_delete 추가로 해결)
+  - 다음: Create Infrastructure → Deploy
+
+#### 다음 작업:
+
+- [ ] AWS 인프라 재생성 (Destroy → Create)
+- [ ] Frontend + Backend 동시 배포 테스트
+- [ ] ALB URL 접속 테스트
+- [ ] 경로 라우팅 확인 (/, /api/*)
+- [ ] 간단한 API 엔드포인트 작성 및 Frontend 연동 테스트
+- [ ] S3 Presigned URL 파일 업로드/다운로드 테스트
+- [ ] 성공 후 cookiecutter 템플릿으로 변경사항 이동
+
+#### 수정된 파일 (test_workflow_v4):
+
+**새로 추가:**
+- `frontend/` (Next.js 프로젝트 전체)
+- `frontend/Dockerfile`
+- `frontend/Dockerfile.prod`
+
+**수정:**
+- `backend/config/urls.py` (API prefix 추가)
+- `docker-compose.yml` (frontend 서비스 추가)
+- `terraform/ecr.tf` (Backend/Frontend 분리, force_delete)
+- `terraform/alb.tf` (경로 기반 라우팅)
+- `terraform/ecs.tf` (Backend/Frontend Task/Service 분리)
+- `terraform/outputs.tf` (ECR/Service 이름 업데이트)
+- `.github/workflows/deploy.yml` (Frontend 빌드/배포 추가)
+- `.env` (DATABASE_URL 수정, NEXT_PUBLIC_API_URL 추가)
+
+---
+
 ## 다음 단계
 
-**우선순위 1: 템플릿 정리 및 커밋**
-- [ ] 모든 변경사항 커밋
-- [ ] 테스트 프로젝트 정리
-- [ ] README 업데이트
+**우선순위 1: Full-Stack 배포 완료**
+- [ ] AWS 인프라 재생성 완료
+- [ ] Frontend + Backend 배포 테스트
+- [ ] API 연동 테스트 페이지 작성
+- [ ] S3 파일 업로드 테스트
 
-**우선순위 2: 추가 기능 구현 (선택 사항)**
+**우선순위 2: cookiecutter 템플릿 통합**
+- [ ] test_workflow_v4 변경사항을 템플릿으로 이동
+- [ ] README 업데이트 (Frontend 추가)
+- [ ] 새 프로젝트로 전체 플로우 테스트
+
+**우선순위 3: 추가 기능 (선택 사항)**
 - [ ] Migration 자동 실행 (entrypoint.sh)
 - [ ] Superuser 자동 생성 스크립트
 - [ ] CloudWatch 로그 필터 설정
+- [ ] EC2 All-in-One 배포 옵션 추가
 
 ---
 
